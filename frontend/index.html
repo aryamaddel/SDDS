@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Smart Defence Decision Systems — ATLAS tactical command and control interface" />
+  <title>SDDS // ATLAS</title>
+
+  <!-- OpenLayers 9 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@9.2.4/dist/ol.css" />
+  <script src="https://cdn.jsdelivr.net/npm/ol@9.2.4/dist/ol.js"></script>
+
+  <!-- JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ═══ STATUS BAR ═══ -->
+  <header id="statusbar">
+    <div id="sb-left">
+      <span id="system-id">SDDS</span>
+      <span class="sb-sep">⁞</span>
+      <span id="system-sub">ATLAS</span>
+      <span class="sb-sep">⁞</span>
+      <span id="ao-label">AO: HIGHLAND VALLEY</span>
+    </div>
+    <div id="sb-right">
+      <span id="ai-status" class="status-offline">● OFFLINE</span>
+      <span id="model-name"></span>
+      <span class="sb-sep">|</span>
+      <span id="coord-display">---.----°N ---.----°E</span>
+    </div>
+  </header>
+
+  <!-- ═══ CHAT DRAWER (left) ═══ -->
+  <aside id="drawer">
+
+    <div id="drawer-header">
+      <span id="drawer-title">COMMS // ATLAS</span>
+      <button id="clear-chat" title="Clear message log">CLR</button>
+    </div>
+
+    <!-- Quick-query chips -->
+    <div id="quick-queries">
+      <button class="chip" data-query="Show all op camping zones on the map.">OP ZONES</button>
+      <button class="chip" data-query="What is the best path from ALPHA BASE to BRAVO CAMP? Highlight it.">ALPHA→BRAVO</button>
+      <button class="chip" data-query="Give me a full situation report of the AO.">SITREP</button>
+      <button class="chip" data-query="Highlight all friendly zones.">FRIENDLIES</button>
+      <button class="chip" data-query="Show all routes available from ALPHA BASE.">ALL ROUTES</button>
+      <button class="chip" data-query="Clear all map overlays.">CLR MAP</button>
+    </div>
+
+    <!-- Message log -->
+    <div id="chat-messages" role="log" aria-live="polite">
+      <div class="msg system-msg">
+        <span class="msg-tag">[SYS]</span>
+        <span class="msg-text">ATLAS online. Tactical interface ready.</span>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div id="chat-input-area">
+      <textarea
+        id="chat-input"
+        placeholder="Enter tactical query..."
+        rows="3"
+        spellcheck="false"
+        autocomplete="off"
+      ></textarea>
+      <div id="input-footer">
+        <span id="input-hint">Ctrl+Enter to transmit</span>
+        <button id="send-btn">TRANSMIT</button>
+      </div>
+    </div>
+
+    <!-- Drawer toggle tab (on right edge) -->
+    <button id="drawer-toggle" title="Toggle COMMS panel" aria-label="Toggle communications panel">
+      <span id="toggle-icon">◀</span>
+    </button>
+
+  </aside>
+
+  <!-- ═══ MAP ═══ -->
+  <main id="map" aria-label="Tactical operational map"></main>
+
+  <!-- ═══ MAP UTILITY CONTROLS (bottom-right) ═══ -->
+  <div id="map-controls">
+    <button class="map-btn" id="btn-clear-all" title="Clear all AI overlays">CLR OVERLAYS</button>
+    <button class="map-btn" id="btn-reset-view" title="Reset map to default view">RESET VIEW</button>
+    <button class="map-btn" id="btn-toggle-base" title="Toggle base tactical layer">BASE LAYER</button>
+  </div>
+
+  <!-- ═══ CLICK COORD POPUP ═══ -->
+  <div id="click-popup">
+    <span id="click-coords-text"></span>
+    <button id="click-query-btn">QUERY LOCATION</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
