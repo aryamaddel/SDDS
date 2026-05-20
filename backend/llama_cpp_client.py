@@ -1,20 +1,18 @@
 """
-Ollama client for SDDS.
-Handles LLM communication, system prompt construction, and JSON response parsing.
+llama_cpp_client.py - SDDS Backend
+Offline CPU-optimized LLM client using llama-cpp-python.
+Handles lazy loading, prompt construction, and non-blocking inference.
 """
 
-import json
 import os
+import json
 import re
-
-import httpx
-
+import anyio
+from typing import Optional
 from map_data import get_system_context
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-
 # ─────────────────────────────────────────────────────────────────────────────
-# SYSTEM PROMPT
+# SYSTEM PROMPT ( ATLAS Persona )
 # ─────────────────────────────────────────────────────────────────────────────
 
 _SYSTEM_PROMPT = f"""You are ATLAS (Advanced Tactical Logistics and Analysis System), an AI command assistant integrated into a military C2 (Command and Control) interface with a live operational map.
@@ -70,51 +68,58 @@ white  → general labels
 - ALWAYS return valid JSON — if unsure, return empty map_commands array
 """
 
+# ─────────────────────────────────────────────────────────────────────────────
+# MODEL LIFECYCLE MANAGEMENT
+# ─────────────────────────────────────────────────────────────────────────────
+
+_llm = None
+
+def get_model_path() -> str:
+    """Retrieve model path from environment variable or standard location."""
+    default_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "models",
+        "qwen2.5-3b-instruct-q4_k_m.gguf"
+    )
+    return os.getenv("SDDS_MODEL_PATH", default_path)
+
+def get_model_name() -> str:
+    """Get the model file name for UI display."""
+    return os.path.basename(get_model_path())
+
+def init_llm():
+    """Lazy initializer for Llama model. Loads GGUF into memory."""
+    global _llm
+    if _llm is not None:
+        return _llm
+
+    model_path = get_model_path()
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(
+            f"Local GGUF model not found at: {model_path}\n"
+            f"Please run download_model.bat first to download the model."
+        )
+
+    print(f"\n[..] Initializing local CPU LLM from: {model_path}")
+    from llama_cpp import Llama
+    
+    # Optimize for pure CPU execution on typical multi-core machines
+    _llm = Llama(
+        model_path=model_path,
+        n_ctx=4096,
+        n_threads=max(1, os.cpu_count() or 4),
+        n_gpu_layers=0,  # Pure CPU
+        verbose=False,
+    )
+    print(f"[OK] Model successfully loaded into memory.\n")
+    return _llm
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MODEL DETECTION
-# ─────────────────────────────────────────────────────────────────────────────
-
-_PREFERRED = [
-    "llama3", "llama3.2", "llama3.1",
-    "mistral", "gemma3", "gemma2", "gemma",
-    "phi4", "phi3", "phi", "qwen", "deepseek",
-]
-
-
-async def get_available_model() -> str:
-    """Auto-detect the best available Ollama model."""
-    env_model = os.getenv("OLLAMA_MODEL")
-    if env_model:
-        return env_model
-
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
-            resp.raise_for_status()
-            models: list[dict] = resp.json().get("models", [])
-            if not models:
-                return "llama3.2"
-
-            for prefix in _PREFERRED:
-                for m in models:
-                    if m["name"].lower().startswith(prefix):
-                        return m["name"]
-
-            return models[0]["name"]
-    except Exception:
-        return "llama3.2"
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# RESPONSE PARSING
+# PARSING UTILITIES
 # ─────────────────────────────────────────────────────────────────────────────
 
 def parse_llm_response(text: str) -> dict:
-    """
-    Robustly extract JSON from LLM output.
-    Handles raw JSON, markdown code fences, and partial wrapping.
-    """
+    """Robustly extract JSON from LLM output."""
     text = text.strip()
 
     # 1. Direct parse
@@ -142,53 +147,53 @@ def parse_llm_response(text: str) -> dict:
     # 4. Fallback — return the raw text as a plain message
     return {"message": text, "map_commands": []}
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# CHAT
+# CHAT INFERENCE
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def chat(message: str, map_context: dict, model: str | None = None) -> dict:
-    """Send a user message to Ollama and return a structured response dict."""
-    if model is None:
-        model = await get_available_model()
+def _sync_chat(message: str, map_context: dict) -> dict:
+    """Synchronous inference worker function."""
+    llm = init_llm()
 
-    # Append current map state so the LLM knows what's visible
     context_suffix = ""
     if map_context:
         context_suffix = f"\n\nCURRENT MAP STATE: {json.dumps(map_context)}"
 
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": message + context_suffix},
-        ],
-        "stream": False,
-        "options": {
-            "temperature": 0.2,   # Low for reliable JSON
-            "num_predict": 1024,
-        },
-    }
+    # Construct the chat message structure
+    messages = [
+        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "user", "content": message + context_suffix}
+    ]
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        resp = await client.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload)
-        resp.raise_for_status()
+    # Run chat completion using llama_cpp API
+    # Max tokens is 1024 to fit any detailed command list + tactical assessment
+    response = llm.create_chat_completion(
+        messages=messages,
+        temperature=0.2,       # Low temperature ensures reliable JSON obedience
+        max_tokens=1024,
+    )
 
-    content: str = resp.json().get("message", {}).get("content", "")
+    content = response["choices"][0]["message"]["content"]
     return parse_llm_response(content)
 
+async def chat(message: str, map_context: dict, model: str | None = None) -> dict:
+    """
+    Asynchronous chat interface.
+    Offloads heavy CPU inference to a background thread to prevent blocking FastAPI.
+    """
+    # anyio.to_thread.run_sync offloads the blocking execution to a worker thread pool.
+    return await anyio.to_thread.run_sync(_sync_chat, message, map_context)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# STATUS
+# STATUS / HEALTH
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def check_ollama_status() -> dict:
-    """Return Ollama connectivity status and available models."""
-    try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
-            resp.raise_for_status()
-            models = [m["name"] for m in resp.json().get("models", [])]
-            return {"online": True, "models": models}
-    except Exception as exc:
-        return {"online": False, "error": str(exc), "models": []}
+async def check_model_status() -> dict:
+    """Return model status and path details for health endpoint."""
+    path = get_model_path()
+    exists = os.path.exists(path)
+    return {
+        "online": exists,
+        "models": [os.path.basename(path)] if exists else [],
+        "error": None if exists else f"Model file not found at: {path}"
+    }

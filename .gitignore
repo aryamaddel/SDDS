@@ -20,3 +20,7 @@ Thumbs.db
 *.swo
 .vscode/
 .idea/
+
+# Local models
+models/
+

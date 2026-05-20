@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 
-from ollama_client import chat, check_ollama_status, get_available_model
+from llama_cpp_client import chat, check_model_status, get_model_name
 from map_data import get_map_data
 
 app = FastAPI(title="SDDS Backend", version="1.0.0")
@@ -44,14 +44,12 @@ class ChatResponse(BaseModel):
 
 @app.get("/health")
 async def health():
-    """Check backend and Ollama connectivity."""
-    ollama = await check_ollama_status()
-    model = None
-    if ollama["online"]:
-        model = await get_available_model()
+    """Check backend and local model connectivity."""
+    status = await check_model_status()
+    model = get_model_name() if status["online"] else None
     return {
         "status": "ok",
-        "ollama": ollama,
+        "ollama": status,  # Kept as "ollama" key for frontend compatibility
         "model": model,
     }
 
@@ -59,10 +57,10 @@ async def health():
 @app.post("/chat", response_model=ChatResponse)
 async def handle_chat(req: ChatRequest):
     """
-    Send a message to ATLAS (Ollama LLM) with current map context.
+    Send a message to ATLAS (Local CPU LLM) with current map context.
     Returns an AI message and a list of map commands to execute on the frontend.
     """
-    model = await get_available_model()
+    model = get_model_name()
     try:
         result = await chat(
             message=req.message,
@@ -74,6 +72,7 @@ async def handle_chat(req: ChatRequest):
             map_commands=result.get("map_commands", []),
             model_used=model,
         )
+
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
