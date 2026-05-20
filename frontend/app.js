@@ -26,13 +26,21 @@ let tacticalCache = null;
 // MAP INITIALISATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Base tile layer — CartoDB Dark Matter (no API key needed)
+// Base tile sources (OpenStreetMap standard, Voyager, and Dark Matter)
+const themeSources = {
+  dark: "https://{a-c}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+  voyager: "https://{a-c}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+  light: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", // OpenStreetMap: Ultra-high visibility, clear borders, roads, forests, and contours!
+};
+
+let currentTheme = "light";
+
+// Base tile layer — Defaults to OpenStreetMap Light (no API key needed)
 const tileLayer = new ol.layer.Tile({
   source: new ol.source.XYZ({
-    url: "https://{a-c}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+    url: themeSources.light,
     attributions:
-      '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors ' +
-      '© <a href="https://carto.com/attributions">CARTO</a>',
+      '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
   }),
 });
@@ -162,18 +170,22 @@ function labelStyle(text, colorName) {
   });
 }
 
-// Dim styles for the permanent base layer
+// Dim styles for the permanent base layer (adapts to light/dark themes dynamically)
 function dimZoneStyle(colorName) {
   const c = color(colorName);
+  const isLight = currentTheme === "light";
   return new ol.style.Style({
-    fill: new ol.style.Fill({ color: hexToRgba(c, 0.04) }),
-    stroke: new ol.style.Stroke({ color: hexToRgba(c, 0.28), width: 1 }),
+    fill: new ol.style.Fill({ color: hexToRgba(c, isLight ? 0.08 : 0.04) }),
+    stroke: new ol.style.Stroke({ color: hexToRgba(c, isLight ? 0.45 : 0.28), width: isLight ? 1.8 : 1 }),
   });
 }
 
 function dimLineStyle(colorName, alpha = 0.2) {
+  const isLight = currentTheme === "light";
+  const adjustedAlpha = isLight ? Math.min(alpha * 2.2, 0.7) : alpha;
+  const adjustedWidth = isLight ? 2.2 : 1.5;
   return new ol.style.Style({
-    stroke: new ol.style.Stroke({ color: hexToRgba(color(colorName), alpha), width: 1.5 }),
+    stroke: new ol.style.Stroke({ color: hexToRgba(color(colorName), adjustedAlpha), width: adjustedWidth }),
   });
 }
 
@@ -196,23 +208,24 @@ async function loadTacticalData() {
         zone.polygon.map((c) => ol.proj.fromLonLat(c)),
       ]);
       const feat = new ol.Feature({ geometry: poly });
-      feat.setStyle(dimZoneStyle(zone.color));
+      feat.setStyle(() => dimZoneStyle(zone.color));
       baseSource.addFeature(feat);
 
       // Zone label centred on polygon
       const label = new ol.Feature({
         geometry: new ol.geom.Point(ol.proj.fromLonLat(zone.center)),
       });
-      label.setStyle(
-        new ol.style.Style({
+      label.setStyle(() => {
+        const isLight = currentTheme === "light";
+        return new ol.style.Style({
           text: new ol.style.Text({
             text: zone.name,
             font: "500 9px 'JetBrains Mono', monospace",
-            fill: new ol.style.Fill({ color: hexToRgba(color(zone.color), 0.45) }),
-            stroke: new ol.style.Stroke({ color: "#1a2126", width: 2 }),
+            fill: new ol.style.Fill({ color: hexToRgba(color(zone.color), isLight ? 0.85 : 0.45) }),
+            stroke: new ol.style.Stroke({ color: isLight ? "#ffffff" : "#1a2126", width: 2 }),
           }),
-        })
-      );
+        });
+      });
       baseSource.addFeature(label);
     }
 
@@ -223,7 +236,7 @@ async function loadTacticalData() {
           route.coords.map((c) => ol.proj.fromLonLat(c))
         ),
       });
-      line.setStyle(dimLineStyle(route.color));
+      line.setStyle(() => dimLineStyle(route.color));
       baseSource.addFeature(line);
     }
 
@@ -235,21 +248,22 @@ async function loadTacticalData() {
             lm.coords.map((c) => ol.proj.fromLonLat(c))
           ),
         });
-        river.setStyle(dimLineStyle("cyan", 0.14));
+        river.setStyle(() => dimLineStyle("cyan", 0.14));
         baseSource.addFeature(river);
       } else {
         // Point landmark — tiny dot
         const dot = new ol.Feature({
           geometry: new ol.geom.Point(ol.proj.fromLonLat(lm.coords)),
         });
-        dot.setStyle(
-          new ol.style.Style({
+        dot.setStyle(() => {
+          const isLight = currentTheme === "light";
+          return new ol.style.Style({
             image: new ol.style.Circle({
-              radius: 3,
-              fill: new ol.style.Fill({ color: hexToRgba(C.amber, 0.4) }),
+              radius: isLight ? 4 : 3,
+              fill: new ol.style.Fill({ color: hexToRgba(C.amber, isLight ? 0.75 : 0.4) }),
             }),
-          })
-        );
+          });
+        });
         baseSource.addFeature(dot);
       }
     }
@@ -606,6 +620,35 @@ document.getElementById("btn-toggle-base").addEventListener("click", function ()
   baseLayer.setVisible(baseVisible);
   this.classList.toggle("active", !baseVisible);
 });
+
+// ── Theme Switchers ──
+function setMapTheme(theme) {
+  if (!themeSources[theme]) return;
+  currentTheme = theme;
+
+  tileLayer.setSource(
+    new ol.source.XYZ({
+      url: themeSources[theme],
+      attributions:
+        '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors ' +
+        '© <a href="https://carto.com/attributions">CARTO</a>',
+      maxZoom: 19,
+    })
+  );
+
+  // Update active state in UI
+  document.querySelectorAll(".theme-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.id === `theme-${theme}`);
+  });
+
+  // Force redraw of base source and other features to apply adaptive styles
+  baseSource.changed();
+  Object.values(src).forEach((s) => s.changed());
+}
+
+document.getElementById("theme-dark").addEventListener("click", () => setMapTheme("dark"));
+document.getElementById("theme-voyager").addEventListener("click", () => setMapTheme("voyager"));
+document.getElementById("theme-light").addEventListener("click", () => setMapTheme("light"));
 
 // ── Coordinate display on pointer move ──
 const $coords = document.getElementById("coord-display");

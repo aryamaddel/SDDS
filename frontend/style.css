@@ -6,26 +6,26 @@
 
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
 
-/* ── Tokens ── */
+/* ── Tokens (Premium Day Tactical Light Mode) ── */
 :root {
-  --bg-hard:  #232a2e;
-  --bg:       #2b3339;
-  --bg1:      #323c41;
-  --bg2:      #3a454a;
-  --bg3:      #434f55;
-  --border:   #4a555b;
-  --border2:  #56635f;
+  --bg-hard:  #f4f6f8; /* Ultra-clean slate off-white background */
+  --bg:       #ffffff; /* Solid white for content panes */
+  --bg1:      #eaeef2; /* Sidebar headers and panels */
+  --bg2:      #dbe3eb; /* Hover states & active selection highlights */
+  --bg3:      #ccd7e3; /* Scrollbars, borders and inactive details */
+  --border:   #b0c2d4; /* High-contrast grid and divider lines */
+  --border2:  #7895b2; /* Prominent outlines and boundaries */
 
-  --fg:       #d3c6aa;
-  --fg-dim:   #859289;
-  --fg-faint: #4a555b;
+  --fg:       #1c2833; /* Jet black / dark navy for maximum readability */
+  --fg-dim:   #4a5768; /* Solid slate-gray for labels and secondary text */
+  --fg-faint: #7f8c9d; /* Metadata and timestamps */
 
-  --green:    #a7c080;
-  --amber:    #e69875;
-  --red:      #e67e80;
-  --cyan:     #83c092;
-  --blue:     #7fbbb3;
-  --yellow:   #dbbc7f;
+  --green:    #229954; /* Tactical green */
+  --amber:    #d35400; /* Tactical orange/amber */
+  --red:      #cb4335; /* Tactical warning red */
+  --cyan:     #2471a3; /* Steel blue */
+  --blue:     #1f618d; /* Deep blue */
+  --yellow:   #d4ac0d; /* Warning gold */
 
   --bar-h:    34px;
   --drawer-w: 360px;
@@ -253,7 +253,7 @@ textarea { font-family: var(--font); }
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 1.5px;
-  color: var(--fg-faint);
+  color: var(--fg-dim);
 }
 
 .msg-text {
@@ -427,3 +427,50 @@ textarea { font-family: var(--font); }
   transition: all var(--ease);
 }
 #click-query-btn:hover { background: var(--amber); color: var(--bg-hard); }
+
+/* ── Unified Map Control Groupings and Theme Buttons ── */
+.control-group-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--fg-faint);
+  margin-top: 6px;
+  margin-bottom: 2px;
+  text-align: right;
+  user-select: none;
+}
+.control-group-label:first-child {
+  margin-top: 0;
+}
+
+.theme-switch-row {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.theme-btn {
+  background: var(--bg1);
+  color: var(--fg-dim);
+  border: 1px solid var(--border);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 4px 6px;
+  text-align: center;
+  flex: 1;
+  transition: all var(--ease);
+}
+
+.theme-btn:hover {
+  background: var(--bg2);
+  color: var(--fg);
+  border-color: var(--border2);
+}
+
+.theme-btn.active {
+  background: var(--bg2);
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+
